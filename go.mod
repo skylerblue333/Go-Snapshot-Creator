@@ -1,0 +1,1 @@
+module go-snapshot-creator\n\ngo 1.21\n
