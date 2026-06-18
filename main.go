@@ -1,1 +1,14 @@
-package main\n\nimport "fmt"\n\nfunc main() {\n\tfmt.Println("Starting Go-Snapshot-Creator service...")\n}\n
+package main
+import (
+    "fmt"
+    "net/http"
+    "log"
+)
+func handler(w http.ResponseWriter, r *http.Request) {
+    fmt.Fprintf(w, "Service is running and healthy")
+}
+func main() {
+    http.HandleFunc("/health", handler)
+    log.Println("Server starting on port 8080...")
+    log.Fatal(http.ListenAndServe(":8080", nil))
+}
