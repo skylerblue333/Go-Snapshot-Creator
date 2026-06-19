@@ -1,1 +1,3 @@
-module go-snapshot-creator\n\ngo 1.21\n
+module github.com/skylerblue333/go-snapshot-creator
+
+go 1.21
