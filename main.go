@@ -1,46 +1,41 @@
+// Go-Snapshot-Creator: High-performance Go Snapshot Creator service
 package main
 
 import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"sync"
+	"time"
 )
 
-type Store struct {
-	mu   sync.RWMutex
-	data map[string]string
-}
-
-var store = Store{data: make(map[string]string)}
-
 func handleProcess(w http.ResponseWriter, r *http.Request) {
-	var payload map[string]string
+	var payload map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
-
-	store.mu.Lock()
-	for k, v := range payload {
-		store.data[k] = v
-	}
-	store.mu.Unlock()
-
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "processed"})
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":    "processed",
+		"received":  len(payload),
+		"timestamp": time.Now().Unix(),
+	})
 }
+
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "healthy", "version": "3.0.0"})
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":    "healthy",
+		"service":   "Go-Snapshot-Creator",
+		"timestamp": time.Now().Unix(),
+	})
 }
 
 func main() {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/process", handleProcess)
 	mux.HandleFunc("/health", handleHealth)
-	
-	log.Println("Go-Snapshot-Creator running on :8080")
+	mux.HandleFunc("/api/v1/process", handleProcess)
+	log.Printf("Go-Snapshot-Creator running on :8080")
 	log.Fatal(http.ListenAndServe(":8080", mux))
 }
