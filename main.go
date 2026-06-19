@@ -2,51 +2,45 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"sync"
-	"time"
 )
 
-type ServiceState struct {
-	mu        sync.RWMutex
-	Processed int
-	Domain    string
+type Store struct {
+	mu   sync.RWMutex
+	data map[string]string
 }
 
-var state = &ServiceState{Domain: "creator"}
-
-func handleHealth(w http.ResponseWriter, r *http.Request) {
-	state.mu.RLock()
-	defer state.mu.RUnlock()
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"status":    "ok",
-		"domain":    state.Domain,
-		"processed": state.Processed,
-	})
-}
+var store = Store{data: make(map[string]string)}
 
 func handleProcess(w http.ResponseWriter, r *http.Request) {
-	state.mu.Lock()
-	state.Processed++
-	state.mu.Unlock()
-	w.WriteHeader(http.StatusAccepted)
-	fmt.Fprint(w, `{"status":"processing"}`)
+	var payload map[string]string
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	store.mu.Lock()
+	for k, v := range payload {
+		store.data[k] = v
+	}
+	store.mu.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "processed"})
+}
+
+func handleHealth(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "healthy", "version": "3.0.0"})
 }
 
 func main() {
 	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/process", handleProcess)
 	mux.HandleFunc("/health", handleHealth)
-	mux.HandleFunc("/process", handleProcess)
-
-	server := &http.Server{
-		Addr:         ":8080",
-		Handler:      mux,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
-	}
-
-	log.Println("Server starting on :8080")
-	log.Fatal(server.ListenAndServe())
+	
+	log.Println("Go-Snapshot-Creator running on :8080")
+	log.Fatal(http.ListenAndServe(":8080", mux))
 }
