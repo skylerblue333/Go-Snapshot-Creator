@@ -44,16 +44,16 @@ func (s *Store) Create(volume string) (Snapshot, error) {
 		return Snapshot{}, errors.New("invalid volume")
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if len(s.snapshots) >= s.maxItems {
-		return Snapshot{}, errors.New("snapshot capacity reached")
-	}
-
 	sum := sha256.Sum256([]byte(volume))
 	id := "snap_" + hex.EncodeToString(sum[:8])
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if existing, ok := s.snapshots[id]; ok {
 		return existing, nil
+	}
+	if len(s.snapshots) >= s.maxItems {
+		return Snapshot{}, errors.New("snapshot capacity reached")
 	}
 
 	snapshot := Snapshot{ID: id, Volume: volume, Status: "completed", CreatedAt: time.Now().UTC()}
