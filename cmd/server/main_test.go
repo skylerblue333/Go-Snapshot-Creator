@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -79,7 +81,7 @@ func TestCapacityAndIdempotency(t *testing.T) {
 	}
 	second, err := s.store.Create("vol-a")
 	if err != nil || first.ID != second.ID {
-		t.Fatalf("expected idempotent create")
+		t.Fatal("expected idempotent create")
 	}
 	if _, err := s.store.Create("vol-b"); err == nil {
 		t.Fatal("expected capacity error")
