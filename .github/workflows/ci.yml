@@ -1,13 +1,47 @@
-name: CI
-on: [push, pull_request]
+name: snapshot-ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  verify:
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
-      - run: go mod tidy
-      - run: go test ./... -v
-      - run: go build -o app ./cmd/server
+          go-version: '1.25.x'
+      - name: Format gate
+        run: test -z "$(gofmt -l .)"
+      - name: Vet
+        run: go vet ./...
+      - name: Unit and race tests
+        run: go test -race -count=1 ./...
+      - name: Build
+        run: go build -trimpath ./cmd/server
+      - name: Vulnerability scan
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+      - name: Build image
+        run: docker build -t sky-snapshot:ci .
+      - name: Verify non-root image
+        run: |
+          user="$(docker image inspect sky-snapshot:ci --format '{{.Config.User}}')"
+          test -n "$user"
+          test "$user" != "0"
+          test "$user" != "root"
+      - name: Smoke test
+        run: |
+          docker run -d --rm --name sky-snapshot-ci -p 18080:8080 sky-snapshot:ci
+          trap 'docker stop sky-snapshot-ci >/dev/null 2>&1 || true' EXIT
+          for i in $(seq 1 20); do
+            if curl --fail --silent http://127.0.0.1:18080/health | grep -q '"status":"ok"'; then exit 0; fi
+            sleep 1
+          done
+          docker logs sky-snapshot-ci
+          exit 1
